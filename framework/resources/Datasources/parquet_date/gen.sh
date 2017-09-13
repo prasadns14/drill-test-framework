@@ -23,7 +23,7 @@ hadoop fs -copyFromLocal ${DRILL_TEST_DATA_DIR}/Datasources/parquet_date/auto_pa
 hadoop fs -copyFromLocal ${DRILL_TEST_DATA_DIR}/Datasources/parquet_date/auto_partition/item_single/1.2 /drill/testdata/parquet_date/auto_partition/item_single_1.2
 
 
-${DRILL_HOME}/bin/sqlline -n ${USERNAME} -p ${PASSWORD} -u "jdbc:drill:schema=dfs.ctas_parquet;drillbit=${DRILL_STORAGE_PLUGIN_SERVER}"  --run=${DRILL_TEST_DATA_DIR}/Datasources/parquet_date/metadata_cache.ddl
+${DRILL_HOME}/bin/sqlline -n ${USERNAME} -p ${PASSWORD} -u "jdbc:drill:schema=dfs_test.ctas_parquet;drillbit=${DRILL_STORAGE_PLUGIN_SERVER}"  --run=${DRILL_TEST_DATA_DIR}/Datasources/parquet_date/metadata_cache.ddl
 
 # TODO: it seems that sqlline does not exit, if one of the queries failed.
 if [ "$?" -eq 0 ]

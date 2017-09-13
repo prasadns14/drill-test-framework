@@ -9,7 +9,7 @@ if [ $dirExists_hive1_parquet_part -eq 0 ]; then
    hadoop fs -rm -r /drill/testdata/subqueries/hive1_parquet_part
 fi
 
-${DRILL_HOME}/bin/sqlline -n ${USERNAME} -p ${PASSWORD} -u "jdbc:drill:schema=dfs.subqueries;drillbit=${DRILL_STORAGE_PLUGIN_SERVER}"  --run=${DRILL_TEST_DATA_DIR}/Datasources/subqueries/create_tables.sql
+${DRILL_HOME}/bin/sqlline -n ${USERNAME} -p ${PASSWORD} -u "jdbc:drill:schema=dfs_test.subqueries;drillbit=${DRILL_STORAGE_PLUGIN_SERVER}"  --run=${DRILL_TEST_DATA_DIR}/Datasources/subqueries/create_tables.sql
 
 if [ "$?" -eq 0 ]
 then
