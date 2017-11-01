@@ -154,6 +154,11 @@ public class DrillTestJdbc implements DrillTest {
       fail(TestStatus.PLAN_VERIFICATION_FAILURE, e);
     } catch (Exception e) {
       fail(TestStatus.EXECUTION_FAILURE, e);
+      try {
+        connection.close();
+      } catch (SQLException e1) {
+        e1.printStackTrace();
+      }
     } finally {
       try {
         for (int i = mainQueryIndex + 1; i < queries.length; i++) {
@@ -161,9 +166,7 @@ public class DrillTestJdbc implements DrillTest {
           executeSetupQuery(queries[i]);
         }
         Thread.sleep(1000);
-        if (!connection.isClosed()) {
-          connectionPool.releaseConnection(modeler, connection);
-        }
+        connectionPool.releaseConnection(modeler, connection);
       } catch (Exception e) {
         LOG.error("Failed while running cleanup query. Not returning connection to pool.", e);
         try {
