@@ -51,7 +51,7 @@ public interface DrillDefaults {
 	 * Default configuration file name.
 	 */
 	static final String DRILL_TEST_CONFIG = "drillTestConfig.properties";
-	
+
 	/**
 	 * Default JDBC driver.
 	 */

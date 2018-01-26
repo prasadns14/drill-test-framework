@@ -147,22 +147,22 @@ public class DrillTestJdbc implements DrillTest {
       } catch (Exception e) {
         LOG.error("Failed while running cleanup query. Not returning connection to pool.", e);
         try {
-			connection.close();
-		} catch (SQLException e1) {
-			LOG.warn(e.getMessage());
-			e1.printStackTrace();
-		}
+          connection.close();
+        } catch (SQLException e1) {
+          LOG.warn(e.getMessage());
+          e1.printStackTrace();
+        }
       }
       if (testStatus == TestStatus.PASS && !TestDriver.cmdParam.outputQueryResult) {
-    	Utils.deleteFile(outputFilename);
+        Utils.deleteFile(outputFilename);
       }
       duration = stopwatch;
 
       if(++noOfCasesCompleted%100==0 && noOfCasesCompleted <= totalCases){
-	LOG.info("----------------------------------------------------------------------------------------------------------------");
+        LOG.info("----------------------------------------------------------------------------------------------------------------");
 
         LOG.info("Execution completed for "+(noOfCasesCompleted)+" out of "+(totalCases)+" tests");
-	LOG.info("----------------------------------------------------------------------------------------------------------------\n");
+        LOG.info("----------------------------------------------------------------------------------------------------------------\n");
       }
       if (TestDriver.driverType == TestDriver.DriverType.APACHE) {
         LOG.info(testStatus + " (" + stopwatch + ") " + modeler.queryFilename + " (connection: " + connection.hashCode() + ")" + " (queryID: " + queryID + ")");
