@@ -57,6 +57,7 @@ public class TestDriver implements DrillDefaults {
   public static String jdbcDriver, jdbcDriverCP, connectionString;
   private static String drillReportsDir, drillReportsDFSDir, username, password, restartDrillScript;
   private static String authMechanism = null;
+  public static boolean isTLSEnabled;
   private String[] injectionKeys = {"DRILL_VERSION"};
   public static Map<String,String> injections = Maps.newHashMap();
   private long [][] memUsage = new long[2][3];
@@ -535,7 +536,7 @@ public class TestDriver implements DrillDefaults {
       String filename = templateFile.getName();
       String pluginType = filename.substring(0, filename.indexOf('-'));
       Utils.updateDrillStoragePlugin(templateFile.getAbsolutePath(),
-    		drillStoragePluginServer, pluginType, fsMode);
+    		drillStoragePluginServer, pluginType, fsMode, isTLSEnabled);
       Thread.sleep(200);
     }
     
@@ -870,6 +871,9 @@ public class TestDriver implements DrillDefaults {
 
     authMechanism = drillProperties.containsKey("AUTH_MECHANISM") ?
         drillProperties.get("AUTH_MECHANISM") : null;
+
+    isTLSEnabled = drillProperties.containsKey("SSL_ENABLED") ?
+      Boolean.parseBoolean(drillProperties.get("SSL_ENABLED")) : false;
 
   }
 

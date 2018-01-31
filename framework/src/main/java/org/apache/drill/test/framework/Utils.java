@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.lang.reflect.Field;
+import java.net.HttpURLConnection;
 import java.net.Inet4Address;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -63,6 +64,9 @@ import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.log4j.Logger;
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSession;
 
 /**
  * Collection of utilities supporting the drill test framework.
@@ -74,6 +78,14 @@ public class Utils implements DrillDefaults {
   static final Map<Integer, String> sqlTypes;
   static final Map<Integer, String> sqlNullabilities;
   static final Map<String, String> drillProperties;
+
+  public static class MyHostNameVerifier implements HostnameVerifier {
+
+    @Override
+    public boolean verify(String s, SSLSession sslSession) {
+      return true;
+    }
+  }
   
   static {
     // setup sql types
@@ -566,7 +578,7 @@ public class Utils implements DrillDefaults {
    * @return true if operation is successful
    */
   public static boolean updateDrillStoragePlugin(String filename,
-      String ipAddress, String pluginType, String fsMode) throws IOException {
+      String ipAddress, String pluginType, String fsMode, boolean isTLSEnabled) throws IOException {
     String content = getFileContent(filename);
     content = content.replace("localhost", Inet4Address.getLocalHost()
         .getHostAddress());
@@ -574,7 +586,7 @@ public class Utils implements DrillDefaults {
       content = content.replace("maprfs:", "file:");
       content = content.replaceAll("location\"\\s*:\\s*\"", "location\":\"" + System.getProperty("user.home"));
     }
-    return postDrillStoragePlugin(content, ipAddress, pluginType);
+    return postDrillStoragePlugin(content, ipAddress, pluginType, isTLSEnabled);
   }
 
   /**
@@ -590,14 +602,21 @@ public class Utils implements DrillDefaults {
    * @throws Exception
    */
   public static boolean postDrillStoragePlugin(String content,
-      String ipAddress, String pluginType) throws IOException {
+      String ipAddress, String pluginType, boolean isTLSEnabled) throws IOException {
       StringBuilder builder = new StringBuilder();
       builder.append("http://" + ipAddress + ":8047/storage/" + pluginType);
-      HttpPost post = new HttpPost(builder.toString() + ".json");
-      post.setHeader("Content-Type", "application/json");
-      post.setEntity(new StringEntity(content));
-      DefaultHttpClient client = new DefaultHttpClient();
-      HttpResponse response = client.execute(post);
+//      HttpPost post = new HttpPost(builder.toString() + ".json");
+//      post.setHeader("Content-Type", "application/json");
+//      post.setEntity(new StringEntity(content));
+//      DefaultHttpClient client = new DefaultHttpClient();
+//      HttpResponse response = client.execute(post);
+      HttpURLConnection connection = null;
+      if (isTLSEnabled) {
+
+      } else {
+        connection = 
+      }
+
       return isResponseSuccessful(response);
   }
 
