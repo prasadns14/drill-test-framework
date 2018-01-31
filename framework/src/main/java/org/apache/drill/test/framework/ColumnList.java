@@ -30,10 +30,21 @@ import java.util.List;
 public class ColumnList {
   private final List<Object> values;
   private final List<Integer> types;
+  private final boolean simba;
+  public static final String SIMBA_JDBC = "sjdbc";
+  private static final double MAX_DIFF_VALUE = 1.0E-6;
 
   public ColumnList(List<Integer> types, List<Object> values) {
     this.values = values;
     this.types = types;
+
+    if (TestDriver.cmdParam.driverExt != null &&
+        TestDriver.cmdParam.driverExt.equals(ColumnList.SIMBA_JDBC)) {
+      this.simba = true;
+    }
+    else {
+      this.simba = false;
+    }
   }
 
   public List<Object> getValues() {
@@ -45,9 +56,15 @@ public class ColumnList {
    * "loosened" logic to handle float, double and decimal types. The algorithm
    * used for the comparison follows:
    * 
-   * Floats: f1 equals f2 iff |((f1-f2)/(average(f1,f2)))| < 0.000001
+   * Floats: f1 and f2 are equal
+   * if f1 == f2
+   * if f1 > f2 && if |(f1-f2)/f1| < 0.000001
+   * if f1 < f2 && if |(f1-f2)/f2| < 0.000001
    * 
-   * Doubles: d1 equals d2 iff |((d1-d2)/(average(d1,d2)))| < 0.000000000001
+   * Doubles: d1 and d2 are equal
+   * if d1 == d2
+   * if d1 > d2 && if |(d1-d2)/d1| < 0.000001
+   * if d1 < d2 && if |(d1-d2)/d2| < 0.000001
    * 
    * Decimals: dec1 equals dec2 iff value(dec1) == value(dec2) and scale(dec1)
    * == scale(dec2)
@@ -67,7 +84,7 @@ public class ColumnList {
       if (values.get(i) == null) {
         continue;
       }
-      int type = (Integer) (types.get(i));
+      int type = types.get(i);
       switch (type) {
       case Types.FLOAT:
       case Types.DOUBLE:
@@ -88,7 +105,35 @@ public class ColumnList {
   public String toString() {
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < values.size() - 1; i++) {
+      int type = types.get(i);
+      if (simba && (type == Types.VARCHAR)) {
+        String s1 = String.valueOf(values.get(i));
+        // if the field has a JSON string or list, then remove newlines so that
+        // each record fits on a single line in the actual output file.
+        // sometimes Drill returns records in different orders, and by
+        // ensuring each reoord is on a single line, they can be matched in any
+        // order
+        if ((s1.length() > 0) &&
+           ((s1.charAt(0) == '{') || (s1.charAt(0) == '[')) ) {
+          s1 = Utils.removeNewLines(s1);
+          values.set(i, s1);
+        }
+      }
       sb.append(values.get(i) + "\t");
+    }
+    int type = types.get(values.size()-1);
+    if (simba && (type == Types.VARCHAR)) {
+      String s1 = String.valueOf(values.get(values.size()-1));
+      // if the field has a JSON string or list, then remove newlines so that
+      // each record fits on a single line in the actual output file.
+      // sometimes Drill returns records in different orders, and by
+      // ensuring each reoord is on a single line, they can be matched in any
+      // order
+      if ((s1.length() > 0) &&
+         ((s1.charAt(0) == '{') || (s1.charAt(0) == '[')) ) {
+        s1 = Utils.removeNewLines(s1);
+        values.set(values.size()-1, s1);
+      }
     }
     sb.append(values.get(values.size() - 1));
     return sb.toString();
@@ -109,25 +154,37 @@ public class ColumnList {
       if (oneNull(list1.get(i), list2.get(i))) {
         return false;
       }
-      int type = (Integer) (types.get(i));
+      int type = types.get(i);
       try {
         switch (type) {
         case Types.FLOAT:
           float f1 = (Float) list1.get(i);
           float f2 = (Float) list2.get(i);
-          if ((f1 + f2) / 2 != 0) {
-            if (!(Math.abs((f1 - f2) / ((f1 + f2) / 2)) < 1.0E-6)) return false;
-          } else if (f1 != 0) {
-            return false;
+          if (f1 != f2) {
+            double relativeError;
+            if (f1 > f2) {
+              relativeError = Math.abs((f1-f2)/f1);
+            } else {
+              relativeError = Math.abs((f1-f2)/f2);
+            }
+            if (relativeError > MAX_DIFF_VALUE) {
+              return false;
+            }
           }
           break;
         case Types.DOUBLE:
           double d1 = (Double) list1.get(i);
           double d2 = (Double) list2.get(i);
-          if ((d1 + d2) / 2 != 0) {
-            if (!(Math.abs((d1 - d2) / ((d1 + d2) / 2)) < 1.0E-12)) return false;
-          } else if (d1 != 0) {
-            return false;
+          if (d1 != d2) {
+            double relativeError;
+            if (d1 > d2) {
+              relativeError = Math.abs((d1-d2)/d1);
+            } else {
+              relativeError = Math.abs((d1-d2)/d2);
+            }
+            if (relativeError > MAX_DIFF_VALUE) {
+              return false;
+            }
           }
           break;
         case Types.DECIMAL:
