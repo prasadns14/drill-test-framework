@@ -56,8 +56,8 @@ public class TestDriver implements DrillDefaults {
   public static String drillTestData, drillTestDataDir, drillOutputDir, drillStoragePluginServer;
   public static String jdbcDriver, jdbcDriverCP, connectionString;
   private static String drillReportsDir, drillReportsDFSDir, username, password, restartDrillScript;
-  private static String authMechanism = null;
-  public static boolean isTLSEnabled;
+  private static String authMechanism = null, authInfo, trustStorePath, trustStorePassword;
+  private static boolean isTLSEnabled;
   private String[] injectionKeys = {"DRILL_VERSION"};
   public static Map<String,String> injections = Maps.newHashMap();
   private long [][] memUsage = new long[2][3];
@@ -116,10 +116,17 @@ public class TestDriver implements DrillDefaults {
   public static Properties getConnectionProperties() {
     Properties connectionProperties = new Properties();
 
+    authInfo = username + ":" + password;
+
     connectionProperties.put("user", username);
     connectionProperties.put("password", password);
     if (authMechanism.equals("PLAIN")) {
       connectionProperties.put("auth", "PLAIN");
+      if (isTLSEnabled) {
+        connectionProperties.put("enableTLS", true);
+        connectionProperties.put("trustStorePath", "/opt/mapr/conf/ssl_truststore");
+        connectionProperties.put("trustStorePassword", "mapr123");
+      }
     } else if (authMechanism.equals("MAPRSASL")) {
       connectionProperties.put("auth", "MAPRSASL");
     } else if (authMechanism.equals("KERBEROS")) {
@@ -536,7 +543,7 @@ public class TestDriver implements DrillDefaults {
       String filename = templateFile.getName();
       String pluginType = filename.substring(0, filename.indexOf('-'));
       Utils.updateDrillStoragePlugin(templateFile.getAbsolutePath(),
-    		drillStoragePluginServer, pluginType, fsMode, isTLSEnabled);
+    		drillStoragePluginServer, pluginType, fsMode, isTLSEnabled, authInfo);
       Thread.sleep(200);
     }
     
@@ -874,6 +881,12 @@ public class TestDriver implements DrillDefaults {
 
     isTLSEnabled = drillProperties.containsKey("SSL_ENABLED") ?
       Boolean.parseBoolean(drillProperties.get("SSL_ENABLED")) : false;
+
+    trustStorePath = drillProperties.containsKey("TRUSTSTORE_PATH") ?
+      drillProperties.get("TRUSTSTORE_PATH") : DEFAULT_TRUSTSTORE_PATH;
+
+    trustStorePassword = drillProperties.containsKey("TRUSTSTORE_PASSWORD") ?
+      drillProperties.get("TRUSTSTORE_PASSWORD") : DEFAULT_TRUSTSTORE_PASSWORD;
 
   }
 

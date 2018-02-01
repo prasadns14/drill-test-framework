@@ -18,16 +18,14 @@
 package org.apache.drill.test.framework;
 
 import org.apache.commons.io.FilenameUtils;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
+
+import java.io.*;
 import java.lang.reflect.Field;
 import java.net.HttpURLConnection;
 import java.net.Inet4Address;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.nio.charset.Charset;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -57,13 +55,9 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import org.apache.drill.test.framework.TestCaseModeler.DataSource;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.log4j.Logger;
+import sun.misc.BASE64Encoder;
+
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLSession;
@@ -545,26 +539,6 @@ public class Utils implements DrillDefaults {
     }
     return nullabilitiesInStrings;
   }
-  
-  /**
-   * Saves content of existing drill storage plugins.
-   * 
-   * @param ipAddress
-   *          IP address of node to update storage plugin for
-   * @param pluginType
-   *          type of plugin; e.g.: "dfs", "cp"
-   * @return content of the specified plugin
-   * @throws Exception
-   */
-  public static String getExistingDrillStoragePlugin(String ipAddress,
-      String pluginType) throws IOException {
-    StringBuilder builder = new StringBuilder();
-    builder.append("http://" + ipAddress + ":8047/storage/" + pluginType);
-    HttpUriRequest request = new HttpGet(builder.toString() + ".json");
-    DefaultHttpClient client = new DefaultHttpClient();
-    HttpResponse response = client.execute(request);
-    return getHttpResponseAsString(response);
-  }
 
   /**
    * Updates storage plugin for drill
@@ -578,7 +552,7 @@ public class Utils implements DrillDefaults {
    * @return true if operation is successful
    */
   public static boolean updateDrillStoragePlugin(String filename,
-      String ipAddress, String pluginType, String fsMode, boolean isTLSEnabled) throws IOException {
+      String ipAddress, String pluginType, String fsMode, boolean isTLSEnabled, String authInformation) throws IOException {
     String content = getFileContent(filename);
     content = content.replace("localhost", Inet4Address.getLocalHost()
         .getHostAddress());
@@ -586,38 +560,59 @@ public class Utils implements DrillDefaults {
       content = content.replace("maprfs:", "file:");
       content = content.replaceAll("location\"\\s*:\\s*\"", "location\":\"" + System.getProperty("user.home"));
     }
-    return postDrillStoragePlugin(content, ipAddress, pluginType, isTLSEnabled);
+    return postDrillStoragePlugin(content, ipAddress, pluginType, isTLSEnabled, authInformation);
   }
 
   /**
    * Posts/updates drill storage plugin content
-   * 
-   * @param content
-   *          string containing drill storage plugin
-   * @param ipAddress
-   *          IP address of node to update storage plugin for
-   * @param pluginType
-   *          type of plugin; e.g.: "dfs", "cp"
+   *
+   * @param content    string containing drill storage plugin
+   * @param ipAddress  IP address of node to update storage plugin for
+   * @param pluginType type of plugin; e.g.: "dfs", "cp"
    * @return true if operation is successful
    * @throws Exception
    */
-  public static boolean postDrillStoragePlugin(String content,
-      String ipAddress, String pluginType, boolean isTLSEnabled) throws IOException {
-      StringBuilder builder = new StringBuilder();
-      builder.append("http://" + ipAddress + ":8047/storage/" + pluginType);
-//      HttpPost post = new HttpPost(builder.toString() + ".json");
-//      post.setHeader("Content-Type", "application/json");
-//      post.setEntity(new StringEntity(content));
-//      DefaultHttpClient client = new DefaultHttpClient();
-//      HttpResponse response = client.execute(post);
-      HttpURLConnection connection = null;
+  public static boolean postDrillStoragePlugin(String content, String ipAddress, String pluginType,
+                                               boolean isTLSEnabled, String authInformation) throws IOException {
+    StringBuilder builder = new StringBuilder();
+    builder.append(isTLSEnabled ? "https://" : "http//" + ipAddress + ":8047/storage/" + pluginType + ".json");
+
+    URL url = new URL(builder.toString());
+    HttpURLConnection connection = null;
+    String out = "";
+    try {
       if (isTLSEnabled) {
-
+        connection = (HttpsURLConnection)url.openConnection();
       } else {
-        connection = 
+        connection = (HttpURLConnection)url.openConnection();
+        ((HttpsURLConnection) connection).setHostnameVerifier(new MyHostNameVerifier());
+        BASE64Encoder encoder = new BASE64Encoder();
+        String encoded =- encoder.encode(authInformation.getBytes(Charset.forName("UTF-8"));
+        connection.setRequestProperty("Authorization", "Basic " + encoded);
       }
+      connection.setRequestMethod("POST");
+      connection.setRequestProperty("Content-type", "application/json");
+      connection.setDoOutput(true);
 
-      return isResponseSuccessful(response);
+      OutputStream os = connection.getOutputStream();
+      os.write(content.getBytes());
+      os.flush();
+
+      if (connection.getResponseCode() != HttpURLConnection.HTTP_CREATED || connection.getResponseCode() != HttpsURLConnection.HTTP_CREATED) {
+        throw new RuntimeException("Failed: HTTP error code : " + connection.getResponseCode());
+      }
+      out = connection.getResponseMessage();
+
+    } catch (MalformedURLException ex) {
+      ex.printStackTrace();
+    } catch (IOException ex) {
+      ex.printStackTrace();
+    } finally {
+      if (connection != null) {
+        connection.disconnect();
+      }
+    }
+    return isResponseSuccessful(out);
   }
 
   private static String getFileContent(String filename) throws IOException {
@@ -626,22 +621,8 @@ public class Utils implements DrillDefaults {
     return new String(encoded, "UTF-8");
   }
 
-  private static String getHttpResponseAsString(HttpResponse response) throws IOException {
-    Reader reader = new BufferedReader(new InputStreamReader(response
-        .getEntity().getContent(), "UTF-8"));
-    StringBuilder builder = new StringBuilder();
-    char[] buffer = new char[1024];
-    int l = 0;
-    while (l >= 0) {
-      builder.append(buffer, 0, l);
-      l = reader.read(buffer);
-    }
-    return builder.toString();
-  }
-
-  private static boolean isResponseSuccessful(HttpResponse response) throws IOException {
-    return getHttpResponseAsString(response).toLowerCase().contains(
-        "\"result\" : \"success\"");
+  private static boolean isResponseSuccessful(String response) throws IOException {
+    return response.toLowerCase().contains("\"result\" : \"success\"");
   }
 
   public static String generateOutputFileName(String inputFileName,

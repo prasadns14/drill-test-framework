@@ -96,7 +96,17 @@ public interface DrillDefaults {
 	 * Default password.
 	 */
 	static final String PASSWORD = "password";
-	
+
+	/**
+	 * Default trust_store path
+	 */
+	static final String DEFAULT_TRUSTSTORE_PATH = "/opt/mapr/conf/ssl_truststore";
+
+	/**
+	 *
+	 */
+	static final String DEFAULT_TRUSTSTORE_PASSWORD = "mapr123";
+
 	/**
 	 * Default drill restart script name.
 	 */
