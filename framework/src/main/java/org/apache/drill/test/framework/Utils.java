@@ -587,7 +587,7 @@ public class Utils implements DrillDefaults {
         connection = (HttpURLConnection)url.openConnection();
         ((HttpsURLConnection) connection).setHostnameVerifier(new MyHostNameVerifier());
         BASE64Encoder encoder = new BASE64Encoder();
-        String encoded =- encoder.encode(authInformation.getBytes(Charset.forName("UTF-8"));
+        String encoded = encoder.encode(authInformation.getBytes("UTF-8"));
         connection.setRequestProperty("Authorization", "Basic " + encoded);
       }
       connection.setRequestMethod("POST");
