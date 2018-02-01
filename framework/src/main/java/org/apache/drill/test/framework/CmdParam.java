@@ -7,6 +7,10 @@ import java.util.List;
 import com.beust.jcommander.Parameter;
 
   public class CmdParam  {
+    @Parameter(names = {"-b"}, description = "file extension for different baseline expected results", required=false)
+    public String driverExt = null;
+    public String SIMBA_ODBC = "sodbc";
+    
     @Parameter(names = {"-s"}, description = "sources", required=true)
     public String sources = null;
 
