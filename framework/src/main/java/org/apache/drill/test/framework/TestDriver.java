@@ -18,7 +18,6 @@
 package org.apache.drill.test.framework;
 
 import com.beust.jcommander.JCommander;
-import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.Lists;
@@ -42,6 +41,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.*;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -531,7 +531,7 @@ public class TestDriver implements DrillDefaults {
     return totalExecutionFailures + totalDataVerificationFailures + totalPlanVerificationFailures + totalTimeoutFailures + totalRandomFailures;
   }
 
-  public void setup() throws IOException, InterruptedException {
+  public void setup() throws IOException, InterruptedException, URISyntaxException {
     if (!new File(drillOutputDir).exists()) {
       new File(drillOutputDir).mkdir();
     }

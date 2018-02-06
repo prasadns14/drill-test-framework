@@ -21,15 +21,13 @@ import org.apache.commons.io.FilenameUtils;
 
 import java.io.*;
 import java.lang.reflect.Field;
-import java.net.HttpURLConnection;
-import java.net.Inet4Address;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.nio.charset.Charset;
+import java.net.*;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -55,12 +53,21 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import org.apache.drill.test.framework.TestCaseModeler.DataSource;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.conn.scheme.PlainSocketFactory;
+import org.apache.http.conn.scheme.Scheme;
+import org.apache.http.conn.scheme.SchemeSocketFactory;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.log4j.Logger;
+import org.json.HTTP;
 import sun.misc.BASE64Encoder;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocketFactory;
 
 /**
  * Collection of utilities supporting the drill test framework.
@@ -72,6 +79,8 @@ public class Utils implements DrillDefaults {
   static final Map<Integer, String> sqlTypes;
   static final Map<Integer, String> sqlNullabilities;
   static final Map<String, String> drillProperties;
+  private static Map<String, String> sessionStore;
+  private static CookieManager cm;
 
   public static class MyHostNameVerifier implements HostnameVerifier {
 
@@ -123,6 +132,9 @@ public class Utils implements DrillDefaults {
       properties.put(key.trim(), bundle.getString(key).trim());
     }
     drillProperties = ImmutableMap.copyOf(properties);
+    sessionStore = Maps.newHashMap();
+    cm = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
+    CookieHandler.setDefault(cm);
   }
 
  /**
@@ -552,7 +564,7 @@ public class Utils implements DrillDefaults {
    * @return true if operation is successful
    */
   public static boolean updateDrillStoragePlugin(String filename,
-      String ipAddress, String pluginType, String fsMode, boolean isTLSEnabled, String authInformation) throws IOException {
+      String ipAddress, String pluginType, String fsMode, boolean isTLSEnabled, String authInformation) throws IOException, URISyntaxException {
     String content = getFileContent(filename);
     content = content.replace("localhost", Inet4Address.getLocalHost()
         .getHostAddress());
@@ -562,6 +574,40 @@ public class Utils implements DrillDefaults {
     }
     return postDrillStoragePlugin(content, ipAddress, pluginType, isTLSEnabled, authInformation);
   }
+
+  private static List<HttpCookie> getSessionID(String ipAddress, String authInformation) {
+    List<HttpCookie> cookies = null;
+
+    try {
+      URL url = new URL("http://" + ipAddress + ":8047/j_security_check");
+      URI uri = url.toURI();
+
+      cookies = cm.getCookieStore().get(uri);
+      if (cookies.isEmpty()) {
+
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("POST");
+        connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+        StringBuilder builder = new StringBuilder();
+        String params = builder.append(URLEncoder.encode("j_username", "UTF-8")).append("=").append(URLEncoder.encode("mapr", "UTF-8"))
+          .append("&").append(URLEncoder.encode("j_password", "UTF-8")).append(URLEncoder.encode("mapr", "UTF-8")).toString();
+        connection.setDoOutput(true);
+
+        OutputStream os = connection.getOutputStream();
+        os.write(params.getBytes());
+        os.flush();
+        os.close();
+
+        connection.getContent();
+        cookies = cm.getCookieStore().get(uri);
+      }
+    } catch (IOException | URISyntaxException ex) {
+      ex.printStackTrace();
+    }
+
+    return cookies;
+  }
+
 
   /**
    * Posts/updates drill storage plugin content
@@ -573,46 +619,52 @@ public class Utils implements DrillDefaults {
    * @throws Exception
    */
   public static boolean postDrillStoragePlugin(String content, String ipAddress, String pluginType,
-                                               boolean isTLSEnabled, String authInformation) throws IOException {
+                                               boolean isTLSEnabled, String authInformation) {
     StringBuilder builder = new StringBuilder();
-    builder.append(isTLSEnabled ? "https://" : "http//" + ipAddress + ":8047/storage/" + pluginType + ".json");
+    builder.append((isTLSEnabled ? "https://" : "http://") + ipAddress + ":8047/storage/" + pluginType + ".json");
 
-    URL url = new URL(builder.toString());
-    HttpURLConnection connection = null;
-    String out = "";
+    List<HttpCookie> cookies = getSessionID(ipAddress, authInformation);
+    String out;
+
     try {
+      URL url = new URL(builder.toString());
+      System.out.println(url);
+      HttpURLConnection connection;
+
       if (isTLSEnabled) {
         connection = (HttpsURLConnection)url.openConnection();
+        ((HttpsURLConnection) connection).setHostnameVerifier(new MyHostNameVerifier());
       } else {
         connection = (HttpURLConnection)url.openConnection();
-        ((HttpsURLConnection) connection).setHostnameVerifier(new MyHostNameVerifier());
-        BASE64Encoder encoder = new BASE64Encoder();
-        String encoded = encoder.encode(authInformation.getBytes("UTF-8"));
-        connection.setRequestProperty("Authorization", "Basic " + encoded);
+      }
+
+      for (HttpCookie cookie : cookies) {
+        connection.setRequestProperty("Cookie", cookie.getName() + "=" + cookie.getValue());
+        System.out.println(cookie.getName() + "=" + cookie.getValue());
       }
       connection.setRequestMethod("POST");
-      connection.setRequestProperty("Content-type", "application/json");
+      connection.setRequestProperty("Content-Type", "application/json");
       connection.setDoOutput(true);
 
       OutputStream os = connection.getOutputStream();
-      os.write(content.getBytes());
+      os.write(content.getBytes("UTF-8"));
       os.flush();
+      os.close();
+      connection.connect();
 
       if (connection.getResponseCode() != HttpURLConnection.HTTP_CREATED || connection.getResponseCode() != HttpsURLConnection.HTTP_CREATED) {
+        out = connection.getResponseMessage();
+        System.out.println(out);
         throw new RuntimeException("Failed: HTTP error code : " + connection.getResponseCode());
       }
       out = connection.getResponseMessage();
-
-    } catch (MalformedURLException ex) {
+      connection.disconnect();
+    } catch (Exception ex) {
       ex.printStackTrace();
-    } catch (IOException ex) {
-      ex.printStackTrace();
-    } finally {
-      if (connection != null) {
-        connection.disconnect();
-      }
+      return false;
     }
     return isResponseSuccessful(out);
+
   }
 
   private static String getFileContent(String filename) throws IOException {
@@ -621,7 +673,7 @@ public class Utils implements DrillDefaults {
     return new String(encoded, "UTF-8");
   }
 
-  private static boolean isResponseSuccessful(String response) throws IOException {
+  private static boolean isResponseSuccessful(String response) {
     return response.toLowerCase().contains("\"result\" : \"success\"");
   }
 
