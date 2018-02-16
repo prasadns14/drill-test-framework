@@ -155,7 +155,7 @@ public class DrillTestJdbc implements DrillTest {
       }
       duration = stopwatch;
 
-      if (TestDriver.driverType == TestDriver.DriverType.APACHE) {
+      if (DrillTestDefaults.JDBC_DRIVER.equals(DrillTestDefaults.Driver.APACHE)) {
         LOG.info("[" + testStatus + "] (" + stopwatch + ") " + modeler.queryFilename + " (ConnectionID: " + connection.hashCode()+ " | QueryID: " + queryID + ")");
       } else {
         LOG.info("[" + testStatus + "] (" + stopwatch + ") " + modeler.queryFilename + " (ConnectionID: " + connection.hashCode() + ")");
@@ -274,7 +274,7 @@ public class DrillTestJdbc implements DrillTest {
 	} finally {
 	  doneProcessingResultSet.set(true);
       if (resultSet != null) {
-        if (TestDriver.driverType == TestDriver.DriverType.APACHE) {
+        if (DrillTestDefaults.JDBC_DRIVER.equals(DrillTestDefaults.Driver.APACHE)) {
           // get queryID before resultSet is closed
           queryID = Utils.getQueryID(resultSet);
         }
